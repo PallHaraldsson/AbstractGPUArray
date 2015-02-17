@@ -8,4 +8,4 @@ An abstract interface for GPU arrays.
 Like this, similar traits can be shared between opengl, opencl or cuda.
 Also, we can standardize the tests for the GPU array.
 We might think about a standardized array test for GPUArrays, julia arrays, FixedSizeArrays, etc. This could greatly improve stability of every array like construct.
-While we're at it, we might as well couple it with a benchmark of all the different array types, which can be used for clearifying which array should be used in which scenario.
+While we're at it, we might as well couple it with a benchmark of all the different array types, which can be used for clarifying which array should be used in which scenario.
