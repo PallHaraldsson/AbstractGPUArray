@@ -1,36 +1,33 @@
-abstract GPUArray{T, ElementNDim, NDim, NoRam, }
+abstract GPUBuffer{T, NDim}
 
 
-#helper for initiazing ram data
-function init_ram(data::Ptr, dims, keepinram::Bool)
-    if keepinram
-        (data == C_NULL) && return zeros(T, dims...) # If C_NULL array is uninitialized
-        return copy(pointer_to_array(data, tuple(dims...))) # otherwise copy original array
-    end
-    return obj = Array(T, (dims*0)...)
+immutable GPUArray{T, NDim, GPUBuff <: GPUBuffer} <: DenseArray{T, NDim}
+    buff::GPUBuff{T, NDim}
+    size::NTuple{Int, NDim}
 end
 
-function data(A::GPUArray)
-    isinram(A) && return A.data
-    return gpu_data(A)
+immutable BufferedGPUArray{GPUArr <: GPUArray}
+    buff::GPUBuff{T, NDim}
+    ram::Array{T, NDim}
 end
 
 
-resize(data::Array{T, 1}, newdims) = resize!(data, newdims) # bad style!! But couldn't figure out how to best switch between inplace resize!
-function resize{NDIM}(data::Array{T, NDIM}, newdims)
-    ranges = map(zip(newdims, size(data))) do dims
-       1:min(dims...) # create a range, which only goes to the smaller dim
-    end
-    tmp = Array(T, newdims...)
-    tmp[ranges...] = data[ranges...] # copy old data
-    return tmp
-end
+length(A::GPUArray)                                     = prod(size(A))
+eltype{T, NDim, GPUBuff}(b::GPUArray{T, NDim, GPUBuff}) = T
+endof(A::GPUArray)                                      = length(A)
+ndims{T, NDim, GPUBuff}(A::GPUArray{T, NDim, GPUBuff})  = NDim
+size(A::GPUArray)                                       = A.size
+size(A::GPUArray, i::Integer)                           = A.size[i]
+start(b::GPUArray)                                      = 1
+next(b::GPUArray, state::Integer)                       = (A[state], state+1)
+done(b::GPUArray, state::Integer)                       = length(A) < state
 
-function Base.resize!(A::GPUArray, newdims)
-    newdims == size(A) && return
+
+function resize!{T, NDim, GPUBuff}(A::GPUArray{T, NDim, GPUBuff}, newdims::NTuple{NDim, Int})
+    newdims == size(A) && return A
+    checkbounds(A, newdims)
     gpu_resize!(A, newdims)
-    isinram(A) && resize(data(A), newdims)
-    nothing
+    A
 end
 
 
@@ -41,21 +38,20 @@ function checkdimensions(value::Array, ranges::Union(Integer, UnitRange)...)
     (array_size != indexes_size) && throw(DimensionMismatch("asigning a $array_size to a $(indexes_size) location"))
     true
 end
-function Base.setindex!{I <: Integer}(A::GPUArray, value::Array{T, N}, indexes::Union(UnitRange, I)...)
+function setindex!{I <: Integer}(A::GPUArray, value::Array{T, N}, indexes::Union(UnitRange, I)...)
     ranges = map(indexes) do val
         isa(val, Integer) && return val:val
-        val # can only unitrange        
+        val # can only be unitrange        
     end
-    setindex!(A, value, ranges)
+    setindex!(A, value, ranges...)
 end
-function Base.setindex!{T, C, N, NoRam}(A::GPUArray{T, C, N, NoRam}, value::Array{T, N}, ranges::UnitRange...)
-    checkbounds(b, ranges...)
+function setindex!{T, C, N, NoRam}(A::GPUArray{T, C, N, NoRam}, value::Array{T, N}, ranges::UnitRange...)
+    checkbounds(A, ranges...)
     checkdimensions(value, range...)
-    !NoRam && setindex!(A, value, ranges...)
-    gpu_setindex!(b, value, ranges...)
+    gpu_setindex!(A, value, ranges...)
 end
 
-function Base.getindex{T, C, N, NoRam}(A::GPUArray{T, C, N, NoRam}, ranges::UnitRange...)
-    checkbounds(b, ranges...)
-    ifelse(NoRam, gpu_getindex(b, ranges...), getindex(A, value, ranges...)
+function getindex{T, C, N, NoRam}(A::GPUArray{T, C, N, NoRam}, ranges::UnitRange...)
+    checkbounds(A, ranges...)
+    gpu_getindex(A, ranges...)
 end

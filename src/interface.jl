@@ -1,4 +1,3 @@
-isinram{T, C, N, NoRAM})(t::GPUArray{T, C, N, NoRAM}) = !NoRAM
 
 # Interface:
 gpu_data(t)      = error("gpu_data not implementat for: $(typeof(t)). This happens, when you call data on an array, without implementing the GPUArray interface")
