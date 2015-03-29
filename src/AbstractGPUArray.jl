@@ -22,6 +22,7 @@ include("interface.jl")
 export data
 export init_ram
 export resize
+export GPUArray
 
 
 end # module
